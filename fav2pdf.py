@@ -193,7 +193,7 @@ def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
                                     os.mkdir(DIR_HUBS + '/' + hub)
                                 if create_html:
                                     os.symlink(
-                                        '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.html')
+                                        '../../posts/' + id + '.html', DIR_HUBS + '/' + hub + "/" + id + '.html')
                                 else:
                                     os.symlink(
                                         '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.pdf')
