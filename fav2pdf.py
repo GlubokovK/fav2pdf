@@ -34,7 +34,8 @@ def parseTopic(url):
 
 
 def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
-         all_in_one=False, save_comments=True, create_symlinks=True, only_hubs=[]):
+         all_in_one=False, save_comments=True, create_symlinks=True,
+         only_hubs=[], create_html=False):
     # user = 'icoz'
     site = "habrahabr.ru/users/%s" % user
     # from_date = u''  # 5 августа 2009
@@ -49,7 +50,10 @@ def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
         u'декабря']
 
     dr = requests.get('http://' + site + '/favorites/').text
-    DIR_PDF = dest_dir + '/pdf'
+    if create_html:
+        DIR_PDF = dest_dir + '/html'
+    else:
+        DIR_PDF = dest_dir + '/pdf'
     DIR_POSTS = DIR_PDF + '/posts'
     DIR_HUBS = DIR_PDF + '/hubs'
     if not all_in_one:
@@ -178,25 +182,35 @@ def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
                     if all_in_one:
                         content_body += topic
                     else:
-                        generatePDF(topic, DIR_POSTS + '/' + id + '.pdf')
+                        if create_html:
+                            generateHTML(topic, DIR_POSTS + '/' + id + '.html')
+                        else:
+                            generatePDF(topic, DIR_POSTS + '/' + id + '.pdf')
                         # create symlinks
                         if create_symlinks:
                             for hub in hubs[index]:
                                 if not os.path.exists(DIR_HUBS + '/' + hub):
                                     os.mkdir(DIR_HUBS + '/' + hub)
-                                os.symlink(
-                                    '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.pdf')
+                                if create_html:
+                                    os.symlink(
+                                        '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.html')
+                                else:
+                                    os.symlink(
+                                        '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.pdf')
                 except:
                     print ' Topic: %s->%s is locked!' % (', '.join(hubs[index]), a.text)
 
         print '----------------------'
     if all_in_one:
-        generatePDF(content + content_body, dest_dir + '/' + user + '.pdf')
+        if create_html:
+            generateHTML(content + content_body, dest_dir + '/' + user + '.html')
+        else:
+            generatePDF(content + content_body, dest_dir + '/' + user + '.pdf')
 
 
 def main():
     p = argparse.ArgumentParser(
-        description=u'Tool for save favorite posts from habrahabr.ru in pdf''s')
+        description=u"Tool for save favorite posts from habrahabr.ru in pdf's or html's")
     p.add_argument('user', type=str, help="habrahabr.ru username")
     p.add_argument('-d', '--output-dir', default='.',
                    type=str, help="Directory for output")
@@ -210,14 +224,16 @@ def main():
                    help='Dont save comments from posts')
     p.add_argument('--no-symlinks', action='store_true',
                    help='Dont create symlinks to posts')
+    p.add_argument('--create-html', action='store_true',
+                   help="Create html's instead of pdf's")
     args = p.parse_args()
     if not os.path.exists(args.output_dir):
-        print('Error! Directory "'+args.output_dir+'" not exists!')
+        print('Error! Directory "' + args.output_dir + '" not exists!')
         sys.exit(1)
     save(
         dest_dir=args.output_dir, user=args.user, from_date=args.from_date.decode(sys.getfilesystemencoding()), to_date=args.to_date.decode(sys.getfilesystemencoding()),
         only_hubs=args.only_hubs, all_in_one=args.all_in_one, save_comments=not args.no_comments,
-        create_symlinks=not args.no_symlinks)
+        create_symlinks=not args.no_symlinks, create_html=args.create_html)
 
 import codecs
 import ho.pisa as pisa
@@ -386,8 +402,16 @@ def generatePDF(content, filename):
     print '\n Prepare PDF...\n'
     content = header + content + footer
 
-    #pisa.showLogging()
-    pisa.CreatePDF(content.encode('UTF-8'), file(filename, 'wb'), raise_exception=False)
+    # pisa.showLogging()
+    pisa.CreatePDF(content.encode('UTF-8'),
+                   file(filename, 'wb'), raise_exception=False)
+
+def generateHTML(content, filename):
+    print '\n Prepare HTML...\n'
+    content = header + content + footer
+
+    with open(filename, 'wb') as f:
+        f.write(content.encode(sys.getfilesystemencoding()))
 
 if __name__ == '__main__':
     main()
