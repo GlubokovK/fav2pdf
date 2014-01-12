@@ -35,9 +35,10 @@ def parseTopic(url):
 
 def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
          all_in_one=False, save_comments=True, create_symlinks=True,
-         only_hubs=[], create_html=False):
+         only_hubs=[], create_html=False, create_url_list=False):
     # user = 'icoz'
     site = "habrahabr.ru/users/%s" % user
+    post_urls = []
     # from_date = u''  # 5 августа 2009
     # to_date = u''  # 30 ноября 2010
     #[u'Android', u'Mobile Development'] только перечисленные блоги. Должны быть юникодные, не забывать 'u' перед строкой. Звездочки писать не надо.
@@ -160,7 +161,6 @@ def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
                 id = id[:-1]
 
             m_link = u'http://m.habrahabr.ru/%s' % token
-
             if len(set(only_hubs) & set(hubs[index])) > 0:
                 hubFlag = True
             else:
@@ -169,43 +169,55 @@ def save(dest_dir=u'.', user='none', from_date=u'', to_date=u'',
             if (topicCount in topic_m) and (hubFlag or only_hubs == []):
                 try:
                     print '%d Topic: %s->%s' % (topicCount, ', '.join(hubs[index]), url)
-                    if all_in_one:
-                        content += u'[%s] <a href="#%d">%s</a><br />' % (
-                            ', '.join(hubs[index]), topicCount, a.text)
-                    topic_res, cmts_res = parseTopic(m_link)
-                    # format topic
-                    topic = u'<h2><a name="%d">[%s] </a><br><a href="%s">%s</a></h2><br><br>' % (
-                        topicCount, u', '.join(hubs[index]), url, a.text) + topic_res
-                    # ... and comments
-                    if save_comments:
-                        topic += cmts_res
-                    if all_in_one:
-                        content_body += topic
+                    if create_url_list:
+                        post_urls.append(m_link)
+                    # parse only when we need it
                     else:
-                        if create_html:
-                            generateHTML(topic, DIR_POSTS + '/' + id + '.html')
+                        if all_in_one:
+                            content += u'[%s] <a href="#%d">%s</a><br />' % (
+                            ', '.join(hubs[index]), topicCount, a.text)
+                        topic_res, cmts_res = parseTopic(m_link)
+                        # format topic
+                        topic = u'<h2><a name="%d">[%s] </a><br><a href="%s">%s</a></h2><br><br>' % (
+                            topicCount, u', '.join(hubs[index]), url, a.text) + topic_res
+                        # ... and comments
+                        if save_comments:
+                            topic += cmts_res
+                        if all_in_one:
+                            content_body += topic
                         else:
-                            generatePDF(topic, DIR_POSTS + '/' + id + '.pdf')
-                        # create symlinks
-                        if create_symlinks:
-                            for hub in hubs[index]:
-                                if not os.path.exists(DIR_HUBS + '/' + hub):
-                                    os.mkdir(DIR_HUBS + '/' + hub)
-                                if create_html:
-                                    os.symlink(
-                                        '../../posts/' + id + '.html', DIR_HUBS + '/' + hub + "/" + id + '.html')
-                                else:
-                                    os.symlink(
-                                        '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.pdf')
+                            if create_html:
+                                generateHTML(
+                                    topic, DIR_POSTS + '/' + id + '.html')
+                            else:
+                                generatePDF(
+                                    topic, DIR_POSTS + '/' + id + '.pdf')
+                            # create symlinks
+                            if create_symlinks:
+                                for hub in hubs[index]:
+                                    if not os.path.exists(DIR_HUBS + '/' + hub):
+                                        os.mkdir(DIR_HUBS + '/' + hub)
+                                    if create_html:
+                                        os.symlink(
+                                            '../../posts/' + id + '.html', DIR_HUBS + '/' + hub + "/" + id + '.html')
+                                    else:
+                                        os.symlink(
+                                            '../../posts/' + id + '.pdf', DIR_HUBS + '/' + hub + "/" + id + '.pdf')
                 except:
                     print ' Topic: %s->%s is locked!' % (', '.join(hubs[index]), a.text)
 
         print '----------------------'
-    if all_in_one:
+    if all_in_one and not create_url_list:
         if create_html:
-            generateHTML(content + content_body, dest_dir + '/' + user + '.html')
+            generateHTML(
+                content + content_body, dest_dir + '/' + user + '.html')
         else:
             generatePDF(content + content_body, dest_dir + '/' + user + '.pdf')
+    if create_url_list:
+        print '\n Prepare URL-list...\n'
+        with open(dest_dir + '/' + user + '.txt', 'wb') as f:
+            f.write("\n".join(post_urls))
+            f.write("\n")
 
 
 def main():
@@ -226,6 +238,8 @@ def main():
                    help='Dont create symlinks to posts')
     p.add_argument('--create-html', action='store_true',
                    help="Create html's instead of pdf's")
+    p.add_argument('--create-url-list', action='store_true',
+                   help="Just save user.txt with all links")
     args = p.parse_args()
     if not os.path.exists(args.output_dir):
         print('Error! Directory "' + args.output_dir + '" not exists!')
@@ -233,7 +247,7 @@ def main():
     save(
         dest_dir=args.output_dir, user=args.user, from_date=args.from_date.decode(sys.getfilesystemencoding()), to_date=args.to_date.decode(sys.getfilesystemencoding()),
         only_hubs=args.only_hubs, all_in_one=args.all_in_one, save_comments=not args.no_comments,
-        create_symlinks=not args.no_symlinks, create_html=args.create_html)
+        create_symlinks=not args.no_symlinks, create_html=args.create_html, create_url_list=args.create_url_list)
 
 import codecs
 import ho.pisa as pisa
@@ -405,6 +419,7 @@ def generatePDF(content, filename):
     # pisa.showLogging()
     pisa.CreatePDF(content.encode('UTF-8'),
                    file(filename, 'wb'), raise_exception=False)
+
 
 def generateHTML(content, filename):
     print '\n Prepare HTML...\n'
